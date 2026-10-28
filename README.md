@@ -1,2 +1,0 @@
-# Fabricio
-Gamer turbo 
