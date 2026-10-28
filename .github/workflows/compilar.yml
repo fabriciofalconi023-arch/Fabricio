@@ -47,6 +47,13 @@ jobs:
           fi
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
+            - name: Corrigir minSdk para Shizuku
+        run: |
+          MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+          sed -i 's/uses-sdk:minSdkVersion="23"/uses-sdk:minSdkVersion="24"/g' "$MANIFEST"
+          sed -i 's/minSdk = 23/minSdk = 24/g' "$PROJECT_DIR/app/build.gradle"
+          sed -i 's/minSdkVersion 23/minSdkVersion 24/g' "$PROJECT_DIR/app/build.gradle"
+
       - name: Compilar APK
         run: |
           cd "$PROJECT_DIR"
