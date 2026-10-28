@@ -1,0 +1,56 @@
+
+name: Compilar Juriti Gamer Turbo
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "*.zip"
+      - ".github/workflows/compilar.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar arquivos do repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Extrair projeto ZIP
+        run: |
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "Nenhum ZIP encontrado na raiz do repositorio"
+            exit 1
+          fi
+          mkdir projeto-extraido
+          unzip -q "$ZIP_FILE" -d projeto-extraido
+          echo "Conteudo extraido:"
+          find projeto-extraido -maxdepth 3 -name gradlew -o -name settings.gradle -o -name settings.gradle.kts
+
+      - name: Localizar projeto Android
+        run: |
+          GRADLEW=$(find projeto-extraido -type f -name gradlew | head -n 1)
+          if [ -z "$GRADLEW" ]; then
+            echo "Nao encontrei gradlew no ZIP. Precisamos verificar a estrutura do projeto."
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$GRADLEW")" >> "$GITHUB_ENV"
+          chmod +x "$GRADLEW"
+
+      - name: Compilar APK
+        run: |
+          cd "$PROJECT_DIR"
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Juriti-Gamer-Turbo-APK
+          path: projeto-extraido/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
