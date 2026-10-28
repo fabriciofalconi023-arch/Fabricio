@@ -99,16 +99,12 @@ jobs:
           PY
 
       
-      - name: Corrigir atalhos e verificar Shizuku
-        run: echo "===== INICIO DA ACTIVITY ====="
-          sed -n '1,85p' "$FILE"
-          echo "===== DEPENDENCIAS E MANIFEST ====="
-          cat "$PROJECT_DIR/app/build.gradle"
-          grep -n -E 'Shizuku|shizuku|provider|service' "$PROJECT_DIR/app/src/main/AndroidManifest.xml" || true
+            - name: Mostrar codigo da Activity
+        run: |
           FILE="$PROJECT_DIR/app/src/main/java/com/juriti/gamerturbo/MainActivity.kt"
-          python3 - "$FILE" <<'PY'
-          from pathlib import Path
-          import sys
+          sed -n '1,85p' "$FILE"
+          echo "===== BUILD GRADLE ====="
+          cat "$PROJECT_DIR/app/build.gradle"
 
           p = Path(sys.argv[1])
           s = p.read_text()
