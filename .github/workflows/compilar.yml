@@ -16,13 +16,13 @@ jobs:
       - name: Baixar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Java
+      - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Instalar Gradle
+      - name: Instalar Gradle 8.7
         run: |
           curl -L https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp
@@ -32,57 +32,70 @@ jobs:
         run: |
           ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERRO: ZIP nao encontrado"
+            echo "ERRO: nenhum ZIP encontrado"
             exit 1
           fi
           mkdir projeto-extraido
           unzip -q "$ZIP_FILE" -d projeto-extraido
 
-      - name: Localizar projeto
+      - name: Localizar projeto Android
         run: |
           SETTINGS=$(find projeto-extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
           if [ -z "$SETTINGS" ]; then
             echo "ERRO: settings.gradle nao encontrado"
-            find projeto-extraido -maxdepth 4 -type f
             exit 1
           fi
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
-          echo "Projeto localizado em $(dirname "$SETTINGS")"
 
-      - name: Corrigir minSdk
+      - name: Corrigir minSdk e Java
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
 
           root = Path("projeto-extraido")
-          files = list(root.rglob("app/build.gradle"))
-          files += list(root.rglob("app/build.gradle.kts"))
+          gradle_files = list(root.rglob("app/build.gradle")) + list(root.rglob("app/build.gradle.kts"))
 
-          if not files:
+          if not gradle_files:
               raise SystemExit("ERRO: app/build.gradle nao encontrado")
 
-          for path in files:
-              content = path.read_text()
-              content = re.sub(
-                  r'(\bminSdk(?:Version)?\s*(?:=\s*)?)23\b',
-                  r'\g<1>24',
-                  content
-              )
-              path.write_text(content)
-              print(f"Arquivo: {path}")
-              for line in content.splitlines():
-                  if "minSdk" in line:
-                      print(line.strip())
+          for path in gradle_files:
+              text = path.read_text()
+
+              # Shizuku requer Android API 24 ou superior
+              text = re.sub(r'(\bminSdk(?:Version)?\s*(?:=\s*)?)23\b', r'\g<1>24', text)
+
+              # Java 17 para combinar com Kotlin 17
+              if re.search(r'compileOptions\s*\{', text):
+                  if not re.search(r'sourceCompatibility\s*(?:=)?\s*JavaVersion\.VERSION_17', text):
+                      text = re.sub(
+                          r'(compileOptions\s*\{)',
+                          r'\1\n        sourceCompatibility JavaVersion.VERSION_17',
+                          text,
+                          count=1
+                      )
+                  if not re.search(r'targetCompatibility\s*(?:=)?\s*JavaVersion\.VERSION_17', text):
+                      text = re.sub(
+                          r'(compileOptions\s*\{[^}]*?)(\})',
+                          r'\1        targetCompatibility JavaVersion.VERSION_17\n    \2',
+                          text,
+                          count=1
+                      )
+              else:
+                  text = re.sub(
+                      r'(android\s*\{)',
+                      r'\1\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }',
+                      text,
+                      count=1
+                  )
+
+              path.write_text(text)
+              print(f"Configurado: {path}")
 
           for path in root.rglob("AndroidManifest.xml"):
-              content = path.read_text()
-              content = re.sub(
-                  r'(android:minSdkVersion\s*=\s*")23(")',
-                  r'\g<1>24\2',
-                  content
-              )
-              path.write_text(content)
+              text = path.read_text()
+              text = re.sub(r'(android:minSdkVersion\s*=\s*")23(")', r'\g<1>24\2', text)
+              path.write_text(text)
           PY
 
       - name: Compilar APK
