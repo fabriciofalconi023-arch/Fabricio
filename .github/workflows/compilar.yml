@@ -32,7 +32,7 @@ jobs:
         run: |
           ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERRO: nenhum ZIP encontrado na raiz do repositorio"
+            echo "ERRO: nenhum ZIP encontrado na raiz"
             exit 1
           fi
           mkdir projeto-extraido
@@ -82,7 +82,6 @@ jobs:
               s = p.read_text()
               s = re.sub(r'(android:minSdkVersion\s*=\s*")23(")', r'\g<1>24\2', s)
               p.write_text(s)
-
           PY
 
       - name: Corrigir atalhos de configuracoes
@@ -97,24 +96,27 @@ jobs:
           s = s.replace("Settings.ACTION_BATTERY_USAGE_SUMMARY", "Settings.ACTION_BATTERY_SAVER_SETTINGS")
           s = s.replace("Settings.ACTION_STORAGE_SETTINGS", "Settings.ACTION_INTERNAL_STORAGE_SETTINGS")
           p.write_text(s)
-          print("Atalhos de bateria e armazenamento ajustados.")
+          print("Atalhos ajustados.")
           PY
 
       - name: Diagnosticar integracao Shizuku
         run: |
           FILE="$PROJECT_DIR/app/src/main/java/com/juriti/gamerturbo/MainActivity.kt"
-          echo "===== LINHAS 1 A 85 DA ACTIVITY ====="
-          sed -n '1,85p' "$FILE"
-          echo "===== DEPENDENCIAS ====="
-          cat "$PROJECT_DIR/app/build.gradle"
-          echo "===== MANIFEST ====="
-          grep -n -E 'Shizuku|shizuku|provider|service' "$PROJECT_DIR/app/src/main/AndroidManifest.xml" || true
 
-      - name: Compilar APK
-        run:           echo "===== RESTANTE DA ACTIVITY ====="
+          echo "===== ACTIVITY LINHAS 1 A 85 ====="
+          sed -n '1,85p' "$FILE"
+
+          echo "===== ACTIVITY LINHAS 86 A 240 ====="
           sed -n '86,240p' "$FILE"
+
+          echo "===== BUILD GRADLE ====="
+          cat "$PROJECT_DIR/app/build.gradle"
+
           echo "===== MANIFEST COMPLETO ====="
           cat "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+
+      - name: Compilar APK
+        run: |
           cd "$PROJECT_DIR"
           gradle assembleDebug --no-daemon
 
