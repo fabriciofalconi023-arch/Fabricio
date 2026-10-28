@@ -100,7 +100,11 @@ jobs:
 
       
       - name: Corrigir atalhos e verificar Shizuku
-        run: |
+        run: echo "===== INICIO DA ACTIVITY ====="
+          sed -n '1,85p' "$FILE"
+          echo "===== DEPENDENCIAS E MANIFEST ====="
+          cat "$PROJECT_DIR/app/build.gradle"
+          grep -n -E 'Shizuku|shizuku|provider|service' "$PROJECT_DIR/app/src/main/AndroidManifest.xml" || true
           FILE="$PROJECT_DIR/app/src/main/java/com/juriti/gamerturbo/MainActivity.kt"
           python3 - "$FILE" <<'PY'
           from pathlib import Path
