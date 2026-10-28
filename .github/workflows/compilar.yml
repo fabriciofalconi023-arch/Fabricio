@@ -111,7 +111,10 @@ jobs:
           grep -n -E 'Shizuku|shizuku|provider|service' "$PROJECT_DIR/app/src/main/AndroidManifest.xml" || true
 
       - name: Compilar APK
-        run: |
+        run:           echo "===== RESTANTE DA ACTIVITY ====="
+          sed -n '86,240p' "$FILE"
+          echo "===== MANIFEST COMPLETO ====="
+          cat "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
           cd "$PROJECT_DIR"
           gradle assembleDebug --no-daemon
 
