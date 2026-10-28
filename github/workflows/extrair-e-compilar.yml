@@ -1,0 +1,61 @@
+
+name: Extrair e compilar Juriti Gamer Turbo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Extrair projeto ZIP
+        run: |
+          ZIP=$(find . -maxdepth 2 -type f \
+            -name 'JuritiGamerTurbo_Shizuku_UserService_Corrigido.zip' \
+            -print -quit)
+          if [ -z "$ZIP" ]; then
+            echo "ZIP do projeto não encontrado."
+            exit 1
+          fi
+          mkdir -p extraido
+          unzip -q "$ZIP" -d extraido
+          SETTINGS=$(find extraido -name settings.gradle \
+            -type f -print -quit)
+          if [ -z "$SETTINGS" ]; then
+            echo "settings.gradle não encontrado."
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Compilar APK
+        run: |
+          cd "$PROJECT_DIR"
+          gradle :app:assembleDebug --stacktrace
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JuritiGamerTurbo-debug-apk
+          path: extraido/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
