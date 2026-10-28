@@ -1,0 +1,60 @@
+
+name: Compilar Juriti Gamer Turbo
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "*.zip"
+      - ".github/workflows/compilar.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Instalar Gradle 8.7
+        run: |
+          curl -L https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-8.7/bin" >> "$GITHUB_PATH"
+
+      - name: Extrair ZIP
+        run: |
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ZIP nao encontrado"
+            exit 1
+          fi
+          mkdir projeto-extraido
+          unzip -q "$ZIP_FILE" -d projeto-extraido
+
+      - name: Encontrar projeto Android
+        run: |
+          SETTINGS=$(find projeto-extraido -type f -name settings.gradle -o -name settings.gradle.kts | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "Nao encontrei settings.gradle no ZIP"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - name: Compilar APK
+        run: |
+          cd "$PROJECT_DIR"
+          gradle assembleDebug --no-daemon
+
+      - name: Salvar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Juriti-Gamer-Turbo-APK
+          path: projeto-extraido/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
