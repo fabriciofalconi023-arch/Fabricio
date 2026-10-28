@@ -11,7 +11,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Baixar repositorio
         uses: actions/checkout@v4
@@ -40,19 +39,24 @@ jobs:
 
       - name: Encontrar projeto Android
         run: |
-          SETTINGS=$(find projeto-extraido -type f -name settings.gradle -o -name settings.gradle.kts | head -n 1)
+          SETTINGS=$(find projeto-extraido \( -name settings.gradle -o -name settings.gradle.kts \) -type f | head -n 1)
           if [ -z "$SETTINGS" ]; then
             echo "Nao encontrei settings.gradle no ZIP"
             exit 1
           fi
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
-            - name: Corrigir minSdk para Shizuku
+      - name: Corrigir minSdk para Shizuku
         run: |
           MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          sed -i 's/uses-sdk:minSdkVersion="23"/uses-sdk:minSdkVersion="24"/g' "$MANIFEST"
-          sed -i 's/minSdk = 23/minSdk = 24/g' "$PROJECT_DIR/app/build.gradle"
-          sed -i 's/minSdkVersion 23/minSdkVersion 24/g' "$PROJECT_DIR/app/build.gradle"
+          BUILD="$PROJECT_DIR/app/build.gradle"
+          if [ -f "$MANIFEST" ]; then
+            sed -i 's/minSdkVersion="23"/minSdkVersion="24"/g' "$MANIFEST"
+          fi
+          if [ -f "$BUILD" ]; then
+            sed -i 's/minSdkVersion 23/minSdkVersion 24/g; s/minSdk = 23/minSdk = 24/g' "$BUILD"
+          fi
+          grep -nE 'minSdk|minSdkVersion' "$BUILD" "$MANIFEST" || true
 
       - name: Compilar APK
         run: |
