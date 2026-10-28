@@ -98,6 +98,13 @@ jobs:
               path.write_text(text)
           PY
 
+      - name: Mostrar codigo com erro
+        run: |
+          FILE="$PROJECT_DIR/app/src/main/java/com/juriti/gamerturbo/MainActivity.kt"
+          echo "===== LINHAS 30 A 45 ====="
+          sed -n '30,45p' "$FILE"
+          echo "===== LINHAS 95 A 112 ====="
+          sed -n '95,112p' "$FILE"
       - name: Compilar APK
         run: |
           cd "$PROJECT_DIR"
