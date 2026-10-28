@@ -28,6 +28,7 @@ jobs:
           ZIP=$(find . -maxdepth 2 -type f \
             -name 'JuritiGamerTurbo_Shizuku_UserService_Corrigido.zip' \
             -print -quit)
+            echo "Settings encontrado em: $SETTINGS"
           if [ -z "$ZIP" ]; then
             echo "ZIP do projeto não encontrado."
             exit 1
