@@ -11,6 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Baixar repositorio
         uses: actions/checkout@v4
@@ -21,7 +22,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Instalar Gradle 8.7
+      - name: Instalar Gradle
         run: |
           curl -L https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp
@@ -31,39 +32,65 @@ jobs:
         run: |
           ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "ZIP nao encontrado"
+            echo "ERRO: ZIP nao encontrado"
             exit 1
           fi
           mkdir projeto-extraido
           unzip -q "$ZIP_FILE" -d projeto-extraido
 
-      - name: Encontrar projeto Android
+      - name: Localizar projeto
         run: |
-          SETTINGS=$(find projeto-extraido \( -name settings.gradle -o -name settings.gradle.kts \) -type f | head -n 1)
+          SETTINGS=$(find projeto-extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)
           if [ -z "$SETTINGS" ]; then
-            echo "Nao encontrei settings.gradle no ZIP"
+            echo "ERRO: settings.gradle nao encontrado"
+            find projeto-extraido -maxdepth 4 -type f
             exit 1
           fi
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+          echo "Projeto localizado em $(dirname "$SETTINGS")"
 
-      - name: Corrigir minSdk para Shizuku
+      - name: Corrigir minSdk
         run: |
-          MANIFEST="$PROJECT_DIR/app/src/main/AndroidManifest.xml"
-          BUILD="$PROJECT_DIR/app/build.gradle"
-          if [ -f "$MANIFEST" ]; then
-            sed -i 's/minSdkVersion="23"/minSdkVersion="24"/g' "$MANIFEST"
-          fi
-          if [ -f "$BUILD" ]; then
-            sed -i 's/minSdkVersion 23/minSdkVersion 24/g; s/minSdk = 23/minSdk = 24/g' "$BUILD"
-          fi
-          grep -nE 'minSdk|minSdkVersion' "$BUILD" "$MANIFEST" || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("projeto-extraido")
+          files = list(root.rglob("app/build.gradle"))
+          files += list(root.rglob("app/build.gradle.kts"))
+
+          if not files:
+              raise SystemExit("ERRO: app/build.gradle nao encontrado")
+
+          for path in files:
+              content = path.read_text()
+              content = re.sub(
+                  r'(\bminSdk(?:Version)?\s*(?:=\s*)?)23\b',
+                  r'\g<1>24',
+                  content
+              )
+              path.write_text(content)
+              print(f"Arquivo: {path}")
+              for line in content.splitlines():
+                  if "minSdk" in line:
+                      print(line.strip())
+
+          for path in root.rglob("AndroidManifest.xml"):
+              content = path.read_text()
+              content = re.sub(
+                  r'(android:minSdkVersion\s*=\s*")23(")',
+                  r'\g<1>24\2',
+                  content
+              )
+              path.write_text(content)
+          PY
 
       - name: Compilar APK
         run: |
           cd "$PROJECT_DIR"
           gradle assembleDebug --no-daemon
 
-      - name: Salvar APK
+      - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
           name: Juriti-Gamer-Turbo-APK
