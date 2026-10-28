@@ -1,61 +1,63 @@
-
 name: Extrair e Compilar Juriti Gamer Turbo
 
 on:
-  workflow_dispatch:
-  push:
-    paths:
-      - 'JuritiGamerTurbo_Shizuku_Corrigido_v2.zip'
-      - '.github/workflows/extrair-e-compilar.yml'
+workflow_dispatch:
+push:
+paths:
+- 'JuritiGamerTurbo_Shizuku_Corrigido_v2.zip'
+- '.github/workflows/extrair-e-compilar.yml'
 
 permissions:
-  contents: read
+contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Baixar arquivos do repositorio
-        uses: actions/checkout@v4
+```
+steps:
+  - name: Baixar arquivos do repositorio
+    uses: actions/checkout@v4
 
-      - name: Configurar Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+  - name: Configurar Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: '17'
 
-      - name: Extrair projeto V2
-        run: |
-          ZIP_FILE="JuritiGamerTurbo_Shizuku_Corrigido_v2.zip"
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERRO: ZIP V2 nao encontrado na raiz do repositorio."
-            ls -la
-            exit 1
-          fi
-          mkdir -p extraido
-          unzip -o "$ZIP_FILE" -d extraido
-          echo "Conteudo extraido:"
-          find extraido -maxdepth 4 \( -name settings.gradle -o -name settings.gradle.kts \)
+  - name: Extrair projeto V2
+    run: |
+      ZIP_FILE="JuritiGamerTurbo_Shizuku_Corrigido_v2.zip"
+      if [ ! -f "$ZIP_FILE" ]; then
+        echo "ERRO: ZIP V2 nao encontrado na raiz do repositorio."
+        ls -la
+        exit 1
+      fi
+      mkdir -p extraido
+      unzip -o "$ZIP_FILE" -d extraido
+      echo "Conteudo extraido:"
+      find extraido -maxdepth 4 \( -name settings.gradle -o -name settings.gradle.kts \)
 
-      - name: Localizar projeto Android
-        run: |
-          SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-          if [ -z "$SETTINGS" ]; then
-            echo "ERRO: settings.gradle nao encontrado no ZIP."
-            exit 1
-          fi
-          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+  - name: Localizar projeto Android
+    run: |
+      SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+      if [ -z "$SETTINGS" ]; then
+        echo "ERRO: settings.gradle nao encontrado no ZIP."
+        exit 1
+      fi
+      echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
-      - name: Compilar APK
-        run: |
-          cd "$PROJECT_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+  - name: Compilar APK
+    run: |
+      cd "$PROJECT_DIR"
+      chmod +x gradlew
+      ./gradlew assembleDebug --stacktrace
 
-      - name: Guardar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Juriti-Gamer-Turbo-APK
-          path: '**/build/outputs/apk/debug/*.apk'
-          if-no-files-found: error
+  - name: Guardar APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: Juriti-Gamer-Turbo-APK
+      path: '**/build/outputs/apk/debug/*.apk'
+      if-no-files-found: error
+```
+
