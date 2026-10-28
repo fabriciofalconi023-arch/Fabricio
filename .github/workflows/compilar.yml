@@ -32,7 +32,7 @@ jobs:
         run: |
           ZIP_FILE=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERRO: nenhum ZIP encontrado"
+            echo "ERRO: nenhum ZIP encontrado na raiz do repositorio"
             exit 1
           fi
           mkdir projeto-extraido
@@ -47,86 +47,69 @@ jobs:
           fi
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
-      - name: Corrigir minSdk e Java
+      - name: Ajustar configuracao Android
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
 
           root = Path("projeto-extraido")
-          gradle_files = list(root.rglob("app/build.gradle")) + list(root.rglob("app/build.gradle.kts"))
+          files = list(root.rglob("app/build.gradle")) + list(root.rglob("app/build.gradle.kts"))
 
-          if not gradle_files:
+          if not files:
               raise SystemExit("ERRO: app/build.gradle nao encontrado")
 
-          for path in gradle_files:
-              text = path.read_text()
+          for p in files:
+              s = p.read_text()
+              s = re.sub(r'(\bminSdk(?:Version)?\s*(?:=\s*)?)23\b', r'\g<1>24', s)
 
-              # Shizuku requer Android API 24 ou superior
-              text = re.sub(r'(\bminSdk(?:Version)?\s*(?:=\s*)?)23\b', r'\g<1>24', text)
-
-              # Java 17 para combinar com Kotlin 17
-              if re.search(r'compileOptions\s*\{', text):
-                  if not re.search(r'sourceCompatibility\s*(?:=)?\s*JavaVersion\.VERSION_17', text):
-                      text = re.sub(
-                          r'(compileOptions\s*\{)',
-                          r'\1\n        sourceCompatibility JavaVersion.VERSION_17',
-                          text,
-                          count=1
-                      )
-                  if not re.search(r'targetCompatibility\s*(?:=)?\s*JavaVersion\.VERSION_17', text):
-                      text = re.sub(
-                          r'(compileOptions\s*\{[^}]*?)(\})',
-                          r'\1        targetCompatibility JavaVersion.VERSION_17\n    \2',
-                          text,
-                          count=1
-                      )
-              else:
-                  text = re.sub(
+              if "compileOptions" not in s:
+                  s = re.sub(
                       r'(android\s*\{)',
                       r'\1\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }',
-                      text,
-                      count=1
+                      s, count=1
                   )
+              else:
+                  if "sourceCompatibility" not in s:
+                      s = re.sub(r'(compileOptions\s*\{)', r'\1\n        sourceCompatibility JavaVersion.VERSION_17', s, count=1)
+                  if "targetCompatibility" not in s:
+                      s = re.sub(r'(compileOptions\s*\{)', r'\1\n        targetCompatibility JavaVersion.VERSION_17', s, count=1)
 
-              path.write_text(text)
-              print(f"Configurado: {path}")
+              p.write_text(s)
+              print("Configurado:", p)
 
-          for path in root.rglob("AndroidManifest.xml"):
-              text = path.read_text()
-              text = re.sub(r'(android:minSdkVersion\s*=\s*")23(")', r'\g<1>24\2', text)
-              path.write_text(text)
+          for p in root.rglob("AndroidManifest.xml"):
+              s = p.read_text()
+              s = re.sub(r'(android:minSdkVersion\s*=\s*")23(")', r'\g<1>24\2', s)
+              p.write_text(s)
+
           PY
 
-      
-            - name: Mostrar codigo da Activity
+      - name: Corrigir atalhos de configuracoes
         run: |
           FILE="$PROJECT_DIR/app/src/main/java/com/juriti/gamerturbo/MainActivity.kt"
-          sed -n '1,85p' "$FILE"
-          echo "===== BUILD GRADLE ====="
-          cat "$PROJECT_DIR/app/build.gradle"
+          python3 - "$FILE" <<'PY'
+          from pathlib import Path
+          import sys
 
           p = Path(sys.argv[1])
           s = p.read_text()
-
-          s = s.replace(
-              "Settings.ACTION_BATTERY_USAGE_SUMMARY",
-              "Settings.ACTION_BATTERY_SAVER_SETTINGS"
-          )
-          s = s.replace(
-              "Settings.ACTION_STORAGE_SETTINGS",
-              "Settings.ACTION_INTERNAL_STORAGE_SETTINGS"
-          )
-
+          s = s.replace("Settings.ACTION_BATTERY_USAGE_SUMMARY", "Settings.ACTION_BATTERY_SAVER_SETTINGS")
+          s = s.replace("Settings.ACTION_STORAGE_SETTINGS", "Settings.ACTION_INTERNAL_STORAGE_SETTINGS")
           p.write_text(s)
-          print("Atalhos de bateria e armazenamento corrigidos.")
+          print("Atalhos de bateria e armazenamento ajustados.")
           PY
 
-          echo "===== SHIZUKU NO CODIGO ====="
-          grep -n -E 'newProcess|UserService|ShizukuRemoteProcess|runShell' "$FILE" || true
-          echo "===== VERSAO DA BIBLIOTECA ====="
-          grep -R -n 'shizuku.*api' "$PROJECT_DIR" --include='*.gradle' --include='*.gradle.kts' || true
-          
+      - name: Diagnosticar integracao Shizuku
+        run: |
+          FILE="$PROJECT_DIR/app/src/main/java/com/juriti/gamerturbo/MainActivity.kt"
+          echo "===== LINHAS 1 A 85 DA ACTIVITY ====="
+          sed -n '1,85p' "$FILE"
+          echo "===== DEPENDENCIAS ====="
+          cat "$PROJECT_DIR/app/build.gradle"
+          echo "===== MANIFEST ====="
+          grep -n -E 'Shizuku|shizuku|provider|service' "$PROJECT_DIR/app/src/main/AndroidManifest.xml" || true
+
       - name: Compilar APK
         run: |
           cd "$PROJECT_DIR"
