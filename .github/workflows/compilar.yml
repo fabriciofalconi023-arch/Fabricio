@@ -98,13 +98,34 @@ jobs:
               path.write_text(text)
           PY
 
-      - name: Mostrar codigo com erro
+      
+      - name: Corrigir atalhos e verificar Shizuku
         run: |
           FILE="$PROJECT_DIR/app/src/main/java/com/juriti/gamerturbo/MainActivity.kt"
-          echo "===== LINHAS 30 A 45 ====="
-          sed -n '30,45p' "$FILE"
-          echo "===== LINHAS 95 A 112 ====="
-          sed -n '95,112p' "$FILE"
+          python3 - "$FILE" <<'PY'
+          from pathlib import Path
+          import sys
+
+          p = Path(sys.argv[1])
+          s = p.read_text()
+
+          s = s.replace(
+              "Settings.ACTION_BATTERY_USAGE_SUMMARY",
+              "Settings.ACTION_BATTERY_SAVER_SETTINGS"
+          )
+          s = s.replace(
+              "Settings.ACTION_STORAGE_SETTINGS",
+              "Settings.ACTION_INTERNAL_STORAGE_SETTINGS"
+          )
+
+          p.write_text(s)
+          print("Atalhos de bateria e armazenamento corrigidos.")
+          PY
+
+          echo "===== SHIZUKU NO CODIGO ====="
+          grep -n -E 'newProcess|UserService|ShizukuRemoteProcess|runShell' "$FILE" || true
+          echo "===== VERSAO DA BIBLIOTECA ====="
+          grep -R -n 'shizuku.*api' "$PROJECT_DIR" --include='*.gradle' --include='*.gradle.kts' || true
           
       - name: Compilar APK
         run: |
