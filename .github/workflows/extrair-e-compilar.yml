@@ -1,0 +1,52 @@
+name: Compilar Juriti Gamer Turbo
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'JuritiGamerTurbo_Shizuku_Corrigido_v2.zip'
+      - '.github/workflows/extrair-e-compilar.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar arquivos
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Extrair projeto
+        run: |
+          unzip -o JuritiGamerTurbo_Shizuku_Corrigido_v2.zip -d extraido
+          SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERRO: settings.gradle não encontrado"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - name: Compilar APK
+        run: |
+          cd "$PROJECT_DIR"
+          gradle assembleDebug --stacktrace
+
+      - name: Guardar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Juriti-Gamer-Turbo-APK
+          path: '**/build/outputs/apk/debug/*.apk'
+          if-no-files-found: error
