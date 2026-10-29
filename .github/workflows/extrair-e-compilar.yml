@@ -1,12 +1,8 @@
 
-name: Compilar Juriti Gamer Turbo
+name: Extrair e compilar APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip'
-      - '.github/workflows/extrair-e-compilar.yml'
 
 permissions:
   contents: read
@@ -16,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Baixar arquivos
+      - name: Baixar repositorio
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
@@ -25,7 +21,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configurar Gradle 8.7
+      - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
@@ -33,20 +29,68 @@ jobs:
       - name: Extrair projeto
         shell: bash
         run: |
-          ZIP="JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip"
-          test -f "$ZIP" || { echo "ZIP não encontrado"; exit 1; }
-          unzip -o "$ZIP" -d extraido
-          SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-          test -n "$SETTINGS" || { echo "settings.gradle não encontrado"; exit 1; }
-          echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+          set -e
+          unzip -q JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip -d extraido
+          PROJECT_DIR="$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs dirname)"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Projeto encontrado em: $PROJECT_DIR"
 
-      - name: Corrigir Java e Kotlin
+      - name: Corrigir interface AIDL e servico
         shell: bash
         run: |
+          set -e
           cd "$PROJECT_DIR"
-          cat >> app/build.gradle <<'GRADLE'
+
+          mkdir -p app/src/main/aidl/com/juriti/gamerturbo
+
+          cat > app/src/main/aidl/com/juriti/gamerturbo/ICommandService.aidl <<'EOF'
+          package com.juriti.gamerturbo;
+
+          interface ICommandService {
+              String runCommand(String command);
+          }
+          EOF
+
+          cat > app/src/main/java/com/juriti/gamerturbo/CommandService.kt <<'EOF'
+          package com.juriti.gamerturbo
+
+          import java.io.BufferedReader
+          import java.io.InputStreamReader
+
+          class CommandService : ICommandService.Stub() {
+              override fun runCommand(command: String): String {
+                  if (command.isBlank()) return "ERRO: comando vazio."
+
+                  return try {
+                      val process = Runtime.getRuntime().exec(
+                          arrayOf("sh", "-c", command)
+                      )
+                      val output = BufferedReader(
+                          InputStreamReader(process.inputStream)
+                      ).readText().trim()
+                      val error = BufferedReader(
+                          InputStreamReader(process.errorStream)
+                      ).readText().trim()
+                      val code = process.waitFor()
+
+                      if (code == 0) {
+                          output.ifBlank { "OK" }
+                      } else {
+                          "ERRO: ${error.ifBlank { output }}"
+                      }
+                  } catch (e: Throwable) {
+                      "ERRO: ${e.message ?: "falha ao executar comando"}"
+                  }
+              }
+          }
+          EOF
+
+          cat >> app/build.gradle <<'EOF'
 
           android {
+              buildFeatures {
+                  aidl = true
+              }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
@@ -58,38 +102,19 @@ jobs:
                   jvmTarget = "17"
               }
           }
-          GRADLE
-
-      - name: Corrigir CommandService
-        shell: bash
-        run: |
-          cd "$PROJECT_DIR"
-          FILE="app/src/main/java/com/juriti/gamerturbo/CommandService.kt"
-
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/juriti/gamerturbo/CommandService.kt")
-          s = p.read_text()
-          s = s.replace("import android.content.Intent\n", "")
-          s = s.replace("import android.os.IBinder\n", "")
-          s = s.replace("    override fun onBind(intent: Intent?): IBinder = commandBinder\n", "")
-          s = s.replace("    override fun onBind(intent: Intent?): IBinder = commandBinder.asBinder()\n", "")
-          p.write_text(s)
-          PY
-
-          echo "CommandService.kt após a alteração:"
-          cat "$FILE"
+          EOF
 
       - name: Compilar APK
+        shell: bash
         run: |
+          set -e
           cd "$PROJECT_DIR"
           gradle assembleDebug --stacktrace
 
-      - name: Guardar APK
-        if: success()
+      - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Juriti-Gamer-Turbo-APK
-          path: 'extraido/**/build/outputs/apk/debug/*.apk'
+          name: JuritiGamerTurbo-debug
+          path: extraido/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           
