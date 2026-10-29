@@ -25,7 +25,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configurar Gradle
+      - name: Configurar Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
@@ -34,16 +34,29 @@ jobs:
         shell: bash
         run: |
           ZIP="JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip"
-          test -f "$ZIP" || { echo "ERRO: ZIP não encontrado: $ZIP"; exit 1; }
+
+          if [ ! -f "$ZIP" ]; then
+            echo "ERRO: ZIP não encontrado: $ZIP"
+            find . -maxdepth 3 -type f
+            exit 1
+          fi
+
           unzip -o "$ZIP" -d extraido
+
           SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-          test -n "$SETTINGS" || { echo "ERRO: settings.gradle não encontrado"; exit 1; }
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERRO: settings.gradle não encontrado"
+            exit 1
+          fi
+
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
       - name: Corrigir compatibilidade Java e Kotlin
         shell: bash
         run: |
           cd "$PROJECT_DIR"
+
           cat >> app/build.gradle <<'GRADLE'
 
           android {
@@ -60,14 +73,25 @@ jobs:
           }
           GRADLE
 
-      - name: Diagnosticar CommandService
+      - name: Corrigir CommandService
         shell: bash
         run: |
           cd "$PROJECT_DIR"
-          echo "=== CommandService.kt ==="
-          nl -ba app/src/main/java/com/juriti/gamerturbo/CommandService.kt | sed -n '1,100p'
+
+          FILE="app/src/main/java/com/juriti/gamerturbo/CommandService.kt"
+
+          if [ ! -f "$FILE" ]; then
+            echo "ERRO: CommandService.kt não encontrado"
+            exit 1
+          fi
+
+          sed -i 's/override fun onBind(intent: Intent?): IBinder = commandBinder$/override fun onBind(intent: Intent?): IBinder = commandBinder.asBinder()/' "$FILE"
+
+          echo "Código atual:"
+          nl -ba "$FILE" | sed -n '22,30p'
 
       - name: Compilar APK
+        shell: bash
         run: |
           cd "$PROJECT_DIR"
           gradle assembleDebug --stacktrace
