@@ -31,7 +31,7 @@ jobs:
 
       - name: Extrair projeto
         run: |
-          unzip -o JuritiGamerTurbo_Shizuku_Corrigido_v2.zip -d extraido
+          unzip -o JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip -d extraido
           SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
           if [ -z "$SETTINGS" ]; then
             echo "ERRO: settings.gradle não encontrado"
