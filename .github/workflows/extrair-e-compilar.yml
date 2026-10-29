@@ -34,29 +34,16 @@ jobs:
         shell: bash
         run: |
           ZIP="JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip"
-
-          if [ ! -f "$ZIP" ]; then
-            echo "ERRO: ZIP não encontrado: $ZIP"
-            find . -maxdepth 3 -type f
-            exit 1
-          fi
-
+          test -f "$ZIP" || { echo "ZIP não encontrado"; exit 1; }
           unzip -o "$ZIP" -d extraido
-
           SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-
-          if [ -z "$SETTINGS" ]; then
-            echo "ERRO: settings.gradle não encontrado"
-            exit 1
-          fi
-
+          test -n "$SETTINGS" || { echo "settings.gradle não encontrado"; exit 1; }
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
-      - name: Corrigir compatibilidade Java e Kotlin
+      - name: Corrigir Java e Kotlin
         shell: bash
         run: |
           cd "$PROJECT_DIR"
-
           cat >> app/build.gradle <<'GRADLE'
 
           android {
@@ -77,21 +64,23 @@ jobs:
         shell: bash
         run: |
           cd "$PROJECT_DIR"
-
           FILE="app/src/main/java/com/juriti/gamerturbo/CommandService.kt"
 
-          if [ ! -f "$FILE" ]; then
-            echo "ERRO: CommandService.kt não encontrado"
-            exit 1
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/juriti/gamerturbo/CommandService.kt")
+          s = p.read_text()
+          s = s.replace("import android.content.Intent\n", "")
+          s = s.replace("import android.os.IBinder\n", "")
+          s = s.replace("    override fun onBind(intent: Intent?): IBinder = commandBinder\n", "")
+          s = s.replace("    override fun onBind(intent: Intent?): IBinder = commandBinder.asBinder()\n", "")
+          p.write_text(s)
+          PY
 
-          sed -i 's/override fun onBind(intent: Intent?): IBinder = commandBinder$/override fun onBind(intent: Intent?): IBinder = commandBinder.asBinder()/' "$FILE"
-
-          echo "Código atual:"
-          nl -ba "$FILE" | sed -n '22,30p'
+          echo "CommandService.kt após a alteração:"
+          cat "$FILE"
 
       - name: Compilar APK
-        shell: bash
         run: |
           cd "$PROJECT_DIR"
           gradle assembleDebug --stacktrace
