@@ -15,7 +15,7 @@ jobs:
       - name: Baixar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Java 17
+      - name: Configurar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -30,18 +30,25 @@ jobs:
         shell: bash
         run: |
           set -e
-          unzip -q JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip -d extraido
-          PROJECT_DIR="$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | xargs dirname)"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Projeto encontrado em: $PROJECT_DIR"
+          ZIP="JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip"
+          test -f "$ZIP" || { echo "ERRO: ZIP nao encontrado: $ZIP"; exit 1; }
+          unzip -q "$ZIP" -d extraido
 
-      - name: Corrigir interface AIDL e servico
+          SETTINGS="$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+          test -n "$SETTINGS" || { echo "ERRO: settings.gradle nao encontrado"; exit 1; }
+
+          PROJECT_DIR="$(dirname "$SETTINGS")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Projeto encontrado: $PROJECT_DIR"
+
+      - name: Criar interface AIDL e corrigir servico
         shell: bash
         run: |
           set -e
           cd "$PROJECT_DIR"
 
           mkdir -p app/src/main/aidl/com/juriti/gamerturbo
+          mkdir -p app/src/main/java/com/juriti/gamerturbo
 
           cat > app/src/main/aidl/com/juriti/gamerturbo/ICommandService.aidl <<'EOF'
           package com.juriti.gamerturbo;
@@ -85,11 +92,31 @@ jobs:
           }
           EOF
 
-          cat >> app/build.gradle <<'EOF'
+          if [ -f app/build.gradle.kts ]; then
+            cat >> app/build.gradle.kts <<'EOF'
 
           android {
               buildFeatures {
                   aidl = true
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          EOF
+          elif [ -f app/build.gradle ]; then
+            cat >> app/build.gradle <<'EOF'
+
+          android {
+              buildFeatures {
+                  aidl true
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -103,6 +130,10 @@ jobs:
               }
           }
           EOF
+          else
+            echo "ERRO: arquivo Gradle do modulo app nao encontrado"
+            exit 1
+          fi
 
       - name: Compilar APK
         shell: bash
@@ -111,7 +142,7 @@ jobs:
           cd "$PROJECT_DIR"
           gradle assembleDebug --stacktrace
 
-      - name: Publicar APK
+      - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
           name: JuritiGamerTurbo-debug
