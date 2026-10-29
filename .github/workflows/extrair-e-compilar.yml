@@ -1,3 +1,4 @@
+
 name: Compilar Juriti Gamer Turbo
 
 on:
@@ -30,12 +31,12 @@ jobs:
           gradle-version: '8.7'
 
       - name: Extrair projeto
+        shell: bash
         run: |
           ZIP="JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip"
 
           if [ ! -f "$ZIP" ]; then
-            echo "ERRO: ZIP não encontrado: $ZIP"
-            echo "Arquivos disponíveis:"
+            echo "ERRO: ZIP não encontrado na raiz do repositório: $ZIP"
             find . -maxdepth 3 -type f
             exit 1
           fi
@@ -45,14 +46,15 @@ jobs:
           SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
 
           if [ -z "$SETTINGS" ]; then
-            echo "ERRO: settings.gradle não encontrado no ZIP"
+            echo "ERRO: settings.gradle não encontrado dentro do ZIP"
             find extraido -maxdepth 4 -type f
             exit 1
           fi
 
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
-      - name: Ajustar compatibilidade Java
+      - name: Corrigir compatibilidade Java e Kotlin
+        shell: bash
         run: |
           cd "$PROJECT_DIR"
 
@@ -61,11 +63,24 @@ jobs:
             exit 1
           fi
 
-          sed -i 's/VERSION_1_8/VERSION_17/g' app/build.gradle
-          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' app/build.gradle
+          cat >> app/build.gradle <<'GRADLE'
 
-          echo "Configuração Java atualizada:"
-          grep -nE 'sourceCompatibility|targetCompatibility|jvmTarget' app/build.gradle || true
+          // Compatibilidade adicionada automaticamente pelo GitHub Actions.
+          android {
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          GRADLE
+
+          echo "Configuração Java e Kotlin aplicada."
 
       - name: Compilar APK
         run: |
@@ -76,6 +91,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Juriti-Gamer-Turbo-APK
-          path: '**/build/outputs/apk/debug/*.apk'
+          path: 'extraido/**/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
           
