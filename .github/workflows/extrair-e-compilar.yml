@@ -34,38 +34,18 @@ jobs:
         shell: bash
         run: |
           ZIP="JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip"
-
-          if [ ! -f "$ZIP" ]; then
-            echo "ERRO: ZIP não encontrado na raiz do repositório: $ZIP"
-            find . -maxdepth 3 -type f
-            exit 1
-          fi
-
+          test -f "$ZIP" || { echo "ERRO: ZIP não encontrado: $ZIP"; exit 1; }
           unzip -o "$ZIP" -d extraido
-
           SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-
-          if [ -z "$SETTINGS" ]; then
-            echo "ERRO: settings.gradle não encontrado dentro do ZIP"
-            find extraido -maxdepth 4 -type f
-            exit 1
-          fi
-
+          test -n "$SETTINGS" || { echo "ERRO: settings.gradle não encontrado"; exit 1; }
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
       - name: Corrigir compatibilidade Java e Kotlin
         shell: bash
         run: |
           cd "$PROJECT_DIR"
-
-          if [ ! -f app/build.gradle ]; then
-            echo "ERRO: app/build.gradle não encontrado"
-            exit 1
-          fi
-
           cat >> app/build.gradle <<'GRADLE'
 
-          // Compatibilidade adicionada automaticamente pelo GitHub Actions.
           android {
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -80,7 +60,12 @@ jobs:
           }
           GRADLE
 
-          echo "Configuração Java e Kotlin aplicada."
+      - name: Diagnosticar CommandService
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+          echo "=== CommandService.kt ==="
+          nl -ba app/src/main/java/com/juriti/gamerturbo/CommandService.kt | sed -n '1,100p'
 
       - name: Compilar APK
         run: |
@@ -88,6 +73,7 @@ jobs:
           gradle assembleDebug --stacktrace
 
       - name: Guardar APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Juriti-Gamer-Turbo-APK
