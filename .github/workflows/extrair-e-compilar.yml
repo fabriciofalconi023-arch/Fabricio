@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - 'JuritiGamerTurbo_Shizuku_Corrigido_v2.zip'
+      - 'JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip'
       - '.github/workflows/extrair-e-compilar.yml'
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
       - name: Baixar arquivos
         uses: actions/checkout@v4
 
-      - name: Configurar Java
+      - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -31,13 +31,41 @@ jobs:
 
       - name: Extrair projeto
         run: |
-          unzip -o JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip -d extraido
-          SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
-          if [ -z "$SETTINGS" ]; then
-            echo "ERRO: settings.gradle não encontrado"
+          ZIP="JuritiGamerTurbo_Shizuku_Corrigido_v3_minSdk24.zip"
+
+          if [ ! -f "$ZIP" ]; then
+            echo "ERRO: ZIP não encontrado: $ZIP"
+            echo "Arquivos disponíveis:"
+            find . -maxdepth 3 -type f
             exit 1
           fi
+
+          unzip -o "$ZIP" -d extraido
+
+          SETTINGS=$(find extraido -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERRO: settings.gradle não encontrado no ZIP"
+            find extraido -maxdepth 4 -type f
+            exit 1
+          fi
+
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - name: Ajustar compatibilidade Java
+        run: |
+          cd "$PROJECT_DIR"
+
+          if [ ! -f app/build.gradle ]; then
+            echo "ERRO: app/build.gradle não encontrado"
+            exit 1
+          fi
+
+          sed -i 's/VERSION_1_8/VERSION_17/g' app/build.gradle
+          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' app/build.gradle
+
+          echo "Configuração Java atualizada:"
+          grep -nE 'sourceCompatibility|targetCompatibility|jvmTarget' app/build.gradle || true
 
       - name: Compilar APK
         run: |
@@ -50,3 +78,4 @@ jobs:
           name: Juriti-Gamer-Turbo-APK
           path: '**/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
+          
